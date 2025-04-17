@@ -6,7 +6,7 @@ struct Matrix4x4 {
 	float m[4][4];
 };
 
-// 行列の加法
+// 4x4行列の加法
 Matrix4x4 Add(const Matrix4x4& m1, const Matrix4x4& m2) {
 	Matrix4x4 result;
 	for (int i = 0; i < 4; ++i) {
@@ -16,7 +16,8 @@ Matrix4x4 Add(const Matrix4x4& m1, const Matrix4x4& m2) {
 	}
 	return result;
 };
-// 行列の減法
+
+// 4x4行列の減法
 Matrix4x4 Subtract(const Matrix4x4& m1, const Matrix4x4& m2) {
 	Matrix4x4 result;
 	for (int i = 0; i < 4; ++i) {
@@ -26,7 +27,8 @@ Matrix4x4 Subtract(const Matrix4x4& m1, const Matrix4x4& m2) {
 	}
 	return result;
 };
-// 行列の積
+
+// 4x4行列の積
 Matrix4x4 Multiply(const Matrix4x4& m1, const Matrix4x4& m2) {
 	Matrix4x4 result;
 	result.m[0][0] = m1.m[0][0] * m2.m[0][0] + m1.m[0][1] * m2.m[1][0] + m1.m[0][2] * m2.m[2][0] + m1.m[0][3] * m2.m[3][0];
@@ -47,7 +49,11 @@ Matrix4x4 Multiply(const Matrix4x4& m1, const Matrix4x4& m2) {
 	result.m[3][3] = m1.m[3][0] * m2.m[0][3] + m1.m[3][1] * m2.m[1][3] + m1.m[3][2] * m2.m[2][3] + m1.m[3][3] * m2.m[3][3];
 	return result;
 };
-// 逆行列
+
+/// <summary>
+/// 4x4逆行列
+/// </summary>
+/// <param name="m">元となる行列</param>
 Matrix4x4 Inverse(const Matrix4x4& m) {
 	float det =
 		m.m[0][0] * m.m[1][1] * m.m[2][2] * m.m[3][3] +
@@ -127,7 +133,11 @@ Matrix4x4 Inverse(const Matrix4x4& m) {
 	return result;
 };
 
-// 転置行列
+/// <summary>
+/// 4x4転置行列
+/// </summary>
+/// <param name="m">元となる行列</param>
+/// <returns>行と列を入れ替えた行列</returns>
 Matrix4x4 Transpose(const Matrix4x4& m) {
 	Matrix4x4 result;
 	for (int i = 0; i < 4; ++i) {
@@ -138,19 +148,24 @@ Matrix4x4 Transpose(const Matrix4x4& m) {
 	return result;
 };
 
-// 単位行列
+/// <summary>
+/// 4x4単位行列
+/// </summary>
+/// <returns>対角成分が1、他が0の行列</returns>
 Matrix4x4 MakeIdentity4x4() {
-	Matrix4x4 result = {};
+	Matrix4x4 result = {0};
 	for (int i = 0; i < 4; ++i) {
 		result.m[i][i] = 1.0f;
 	}
 	return result;
 };
 
-
-// 拡大縮小行列
+/// <summary>
+/// 4x4拡大縮小行列
+/// </summary>
+/// <param name="scale">倍率</param>
 Matrix4x4 MakeScaleMatrix(const Vector3& scale) {
-	Matrix4x4 result = {};
+	Matrix4x4 result = {0};
 	result.m[0][0] = scale.x;
 	result.m[1][1] = scale.y;
 	result.m[2][2] = scale.z;
@@ -158,7 +173,12 @@ Matrix4x4 MakeScaleMatrix(const Vector3& scale) {
 	return result;
 };
 
-// 座標変換
+/// <summary>
+/// 3D座標変換
+/// </summary>
+/// <param name="vector">変換するベクトル</param>
+/// <param name="matrix">変換に使われる行列</param>
+/// <returns>変換後のベクトル</returns>
 Vector3 Transform(const Vector3& vector, const Matrix4x4 matrix) {
 	Vector3 result;
 	result.x = vector.x * matrix.m[0][0] + vector.y * matrix.m[1][0] + vector.z * matrix.m[2][0] + matrix.m[3][0];
@@ -172,14 +192,66 @@ Vector3 Transform(const Vector3& vector, const Matrix4x4 matrix) {
 	return result;
 };
 
-// 平行移動行列
+/// <summary>
+/// 平行移動行列の作成
+/// </summary>
+/// <param name="translate">移動量</param>
+/// <returns>平行移動行列</returns>
 Matrix4x4 MakeTranslateMatrix(const Vector3& translate) {
-	Matrix4x4 result = {};
+	Matrix4x4 result = {0};
 	result.m[3][0] = translate.x;
 	result.m[3][1] = translate.y;
 	result.m[3][2] = translate.z;
 	for (int i = 0; i < 4; ++i) {
 		result.m[i][i] = 1.0f;
 	}
+	return result;
+};
+
+/// <summary>
+/// X軸回転行列の作成
+/// </summary>
+/// <param name="radian">回転量(ラジアン)</param>
+/// <returns>回転行列</returns>
+Matrix4x4 MakeRotateXMatrix(float radian) {
+	Matrix4x4 result = {0};
+	result.m[0][0] = 1.0f;
+	result.m[1][1] = std::cosf(radian);
+	result.m[1][2] = std::sinf(radian);
+	result.m[2][1] = -std::sinf(radian);
+	result.m[2][2] = std::cosf(radian);
+	result.m[3][3] = 1.0f;
+	return result;
+};
+
+/// <summary>
+/// Y軸回転行列の作成
+/// </summary>
+/// <param name="radian">回転量(ラジアン)</param>
+/// <returns>回転行列</returns>
+Matrix4x4 MakeRotateYMatrix(float radian) {
+	Matrix4x4 result = {0};
+	result.m[0][0] = std::cosf(radian);
+	result.m[0][2] = -std::sinf(radian);
+	result.m[1][1] = 1.0f;
+	result.m[2][0] = std::sinf(radian);
+	result.m[2][2] = std::cosf(radian);
+	result.m[3][3] = 1.0f;
+	return result;
+};
+
+/// <summary>
+/// Z軸回転行列の作成
+/// </summary>
+/// <param name="radian">回転量(ラジアン)</param>
+/// <returns>回転行列</returns>
+Matrix4x4 MakeRotateZMatrix(float radian) {
+	Matrix4x4 result = {0};
+	result.m[0][0] = std::cosf(radian);
+	result.m[0][1] = std::sinf(radian);
+	result.m[1][0] = -std::sinf(radian);
+	result.m[1][1] = std::cosf(radian);
+	result.m[2][2] = 1.0f;
+	result.m[3][3] = 1.0f;
 	return result;
 };

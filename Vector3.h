@@ -1,5 +1,5 @@
 #pragma once
-#include <math.h>
+#include <cmath>
 
 struct Vector3 {
 	float x;
@@ -7,6 +7,7 @@ struct Vector3 {
 	float z;
 };
 
+// 3次元ベクトル加算
 Vector3 Add(const Vector3& v1, const Vector3& v2) {
 	Vector3 result;
 	result.x = v1.x + v2.x;
@@ -15,6 +16,7 @@ Vector3 Add(const Vector3& v1, const Vector3& v2) {
 	return result;
 }
 
+// 3次元ベクトル減算
 Vector3 Subtract(const Vector3& v1, const Vector3& v2) {
 	Vector3 result;
 	result.x = v1.x - v2.x;
@@ -23,6 +25,7 @@ Vector3 Subtract(const Vector3& v1, const Vector3& v2) {
 	return result;
 }
 
+// 3次元ベクトルのスカラー倍
 Vector3 Multiply(float scalar, const Vector3& v) {
 	Vector3 result;
 	result.x = scalar * v.x;
@@ -31,14 +34,17 @@ Vector3 Multiply(float scalar, const Vector3& v) {
 	return result;
 }
 
+// 3次元ベクトルの内積
 float Dot(const Vector3& v1, const Vector3& v2) {
 	return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
 }
 
+// 3次元ベクトルの長さ(ノルム)
 float Length(const Vector3& v) {
 	return sqrtf(Dot(v, v));
 }
 
+// 3次元ベクトルの正規化
 Vector3 Normalize(const Vector3& v) {
 	Vector3 result;
 	result.x = v.x / Length(v);
