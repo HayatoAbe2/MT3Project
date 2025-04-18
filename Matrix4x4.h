@@ -193,10 +193,9 @@ Vector3 Transform(const Vector3& vector, const Matrix4x4 matrix) {
 };
 
 /// <summary>
-/// 平行移動行列の作成
+/// 4x4平行移動行列の作成
 /// </summary>
 /// <param name="translate">移動量</param>
-/// <returns>平行移動行列</returns>
 Matrix4x4 MakeTranslateMatrix(const Vector3& translate) {
 	Matrix4x4 result = { 0 };
 	result.m[3][0] = translate.x;
@@ -212,7 +211,6 @@ Matrix4x4 MakeTranslateMatrix(const Vector3& translate) {
 /// X軸回転行列の作成
 /// </summary>
 /// <param name="radian">回転量(ラジアン)</param>
-/// <returns>回転行列</returns>
 Matrix4x4 MakeRotateXMatrix(float radian) {
 	Matrix4x4 result = { 0 };
 	result.m[0][0] = 1.0f;
@@ -228,7 +226,6 @@ Matrix4x4 MakeRotateXMatrix(float radian) {
 /// Y軸回転行列の作成
 /// </summary>
 /// <param name="radian">回転量(ラジアン)</param>
-/// <returns>回転行列</returns>
 Matrix4x4 MakeRotateYMatrix(float radian) {
 	Matrix4x4 result = { 0 };
 	result.m[0][0] = std::cosf(radian);
@@ -244,7 +241,6 @@ Matrix4x4 MakeRotateYMatrix(float radian) {
 /// Z軸回転行列の作成
 /// </summary>
 /// <param name="radian">回転量(ラジアン)</param>
-/// <returns>回転行列</returns>
 Matrix4x4 MakeRotateZMatrix(float radian) {
 	Matrix4x4 result = { 0 };
 	result.m[0][0] = std::cosf(radian);
@@ -257,12 +253,11 @@ Matrix4x4 MakeRotateZMatrix(float radian) {
 };
 
 /// <summary>
-/// アフィン変換
+/// 4x4アフィン変換行列作成
 /// </summary>
 /// <param name="scale">拡大縮小</param>
 /// <param name="rotate">回転</param>
 /// <param name="translate">平行移動</param>
-/// <returns>アフィン行列</returns>
 Matrix4x4 MakeAffineMatrix(const Vector3& scale, const Vector3& rotate, const Vector3& translate) {
 	Matrix4x4 result = { 0 };
 	Matrix4x4 rotateXTZMatrix = Multiply(MakeRotateXMatrix(rotate.x), Multiply(MakeRotateYMatrix(rotate.y), MakeRotateZMatrix(rotate.z)));
@@ -278,6 +273,74 @@ Matrix4x4 MakeAffineMatrix(const Vector3& scale, const Vector3& rotate, const Ve
 	result.m[3][0] = translate.x;
 	result.m[3][1] = translate.y;
 	result.m[3][2] = translate.z;
+	result.m[3][3] = 1.0f;
+	return result;
+};
+
+/// <summary>
+/// 透視投影行列作成
+/// </summary>
+/// <param name="fovY">縦画角</param>
+/// <param name="aspectRatio">アスペクト比</param>
+/// <param name="nearClip">近平面</param>
+/// <param name="farClip">遠平面</param>
+Matrix4x4 MakePerspectiveFovMatrix(float fovY, float aspectRatio, float nearClip = 0.1f, float farClip = 1000.0f) {
+	// 0除算の回避
+	assert(aspectRatio != 0);
+	assert(farClip != nearClip);
+
+	Matrix4x4 result = { 0 };
+	result.m[0][0] = (1.0f / aspectRatio) * (1.0f / std::tanf(fovY / 2.0f));
+	result.m[1][1] = (1.0f / std::tanf(fovY / 2.0f));
+	result.m[2][2] = farClip / (farClip - nearClip);
+	result.m[2][3] = 1.0f;
+	result.m[3][2] = (-nearClip * farClip) / (farClip - nearClip);
+	return result;
+};
+
+/// <summary>
+/// 3D正射影行列作成
+/// </summary>
+/// <param name="left">左端</param>
+/// <param name="top">上端</param>
+/// <param name="right">右端</param>
+/// <param name="bottom">下端</param>
+/// <param name="nearClip">近平面</param>
+/// <param name="farClip">遠平面</param>
+Matrix4x4 MakeOrthographicMatrix(float left, float top, float right, float bottom, float nearClip = 0.0f, float farClip = 1000.0f) {
+	// 0除算の回避
+	assert(right != left);
+	assert(top != bottom);
+	assert(farClip != nearClip);
+
+	Matrix4x4 result = { 0 };
+	result.m[0][0] = 2.0f / (right - left);
+	result.m[1][1] = 2.0f / (top - bottom);
+	result.m[2][2] = 1.0f / (farClip - nearClip);
+	result.m[3][0] = (left + right) / (left - right);
+	result.m[3][1] = (top + bottom) / (bottom - top);
+	result.m[3][2] = nearClip / (nearClip - farClip);
+	result.m[3][3] = 1.0f;
+	return result;
+};
+
+/// <summary>
+/// ビューポート行列作成
+/// </summary>
+/// <param name="left">画面左端</param>
+/// <param name="top">画面上端</param>
+/// <param name="width">画面横幅</param>
+/// <param name="height">画面縦幅</param>
+/// <param name="minDepth">最小深度</param>
+/// <param name="maxDepth">最大深度</param>
+Matrix4x4 MakeViewportMatrix(float left, float top, float width, float height, float minDepth = 0.0f, float maxDepth = 1.0f) {
+	Matrix4x4 result = { 0 };
+	result.m[0][0] = width / 2.0f;
+	result.m[1][1] = -height / 2.0f;
+	result.m[2][2] = maxDepth - minDepth;
+	result.m[3][0] = left + (width / 2.0f);
+	result.m[3][1] = top + (height / 2.0f);
+	result.m[3][2] = minDepth;
 	result.m[3][3] = 1.0f;
 	return result;
 };
