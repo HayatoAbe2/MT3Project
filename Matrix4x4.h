@@ -260,16 +260,16 @@ Matrix4x4 MakeRotateZMatrix(float radian) {
 /// <param name="translate">平行移動</param>
 Matrix4x4 MakeAffineMatrix(const Vector3& scale, const Vector3& rotate, const Vector3& translate) {
 	Matrix4x4 result = { 0 };
-	Matrix4x4 rotateXTZMatrix = Multiply(MakeRotateXMatrix(rotate.x), Multiply(MakeRotateYMatrix(rotate.y), MakeRotateZMatrix(rotate.z)));
-	result.m[0][0] = scale.x * rotateXTZMatrix.m[0][0];
-	result.m[0][1] = scale.x * rotateXTZMatrix.m[0][1];
-	result.m[0][2] = scale.x * rotateXTZMatrix.m[0][2];
-	result.m[1][0] = scale.y * rotateXTZMatrix.m[1][0];
-	result.m[1][1] = scale.y * rotateXTZMatrix.m[1][1];
-	result.m[1][2] = scale.y * rotateXTZMatrix.m[1][2];
-	result.m[2][0] = scale.z * rotateXTZMatrix.m[2][0];
-	result.m[2][1] = scale.z * rotateXTZMatrix.m[2][1];
-	result.m[2][2] = scale.z * rotateXTZMatrix.m[2][2];
+	Matrix4x4 rotateXYZMatrix = Multiply(MakeRotateXMatrix(rotate.x), Multiply(MakeRotateYMatrix(rotate.y), MakeRotateZMatrix(rotate.z)));
+	result.m[0][0] = scale.x * rotateXYZMatrix.m[0][0];
+	result.m[0][1] = scale.x * rotateXYZMatrix.m[0][1];
+	result.m[0][2] = scale.x * rotateXYZMatrix.m[0][2];
+	result.m[1][0] = scale.y * rotateXYZMatrix.m[1][0];
+	result.m[1][1] = scale.y * rotateXYZMatrix.m[1][1];
+	result.m[1][2] = scale.y * rotateXYZMatrix.m[1][2];
+	result.m[2][0] = scale.z * rotateXYZMatrix.m[2][0];
+	result.m[2][1] = scale.z * rotateXYZMatrix.m[2][1];
+	result.m[2][2] = scale.z * rotateXYZMatrix.m[2][2];
 	result.m[3][0] = translate.x;
 	result.m[3][1] = translate.y;
 	result.m[3][2] = translate.z;
