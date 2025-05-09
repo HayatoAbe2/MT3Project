@@ -11,6 +11,15 @@ struct Sphere {
 	float radius;
 };
 
+//  線(線分)
+struct Segment {
+	Vector3 origin;
+	Vector3 diff;
+};
+
+Vector3 Project(const Vector3& v1, const  Vector3& v2);
+Vector3 ClosestPoint(const Vector3& point, const Segment& segment);
+
 // 表示用の関数
 static const int kColumnWidth = 60;
 static const int kRowHeight = 20;
@@ -32,13 +41,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// 変数の宣言
 	Vector3 cameraTranslate{ 0.0f,1.9f,-6.49f };
 	Vector3 cameraRotate{ 0.26f,0.0f,0.0f };
-	Sphere sphere{ {0.0f, 0.0f, 0.0f}, 1.0f };
-
 	int kWindowWidth = 1280;
 	int kWindowHeight = 720;
-
 	Matrix4x4 viewProjectionMatrix = MakeViewProjectionMatrix(cameraRotate, cameraTranslate, { float(kWindowWidth),float(kWindowHeight) });
 	Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, float(kWindowWidth), float(kWindowHeight), 0.0f, 1.0f);
+
+	Segment segment{ {-2.0f,-1.0f,0.0f},{3.0f,2.0f,2.0f} };
+	Vector3 point{ -1.5f,0.6f,0.6f };
+	Vector3 project = Project(Subtract(point, segment.origin), segment.diff);
+	Vector3 closestPoint = ClosestPoint(point, segment);
+	Sphere pointSphere{ point, 0.01f };
+	Sphere closestPointSphere{ closestPoint,0.01f };
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
@@ -58,8 +71,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		ImGui::Begin("Window");
 		ImGui::DragFloat3("CameraTranslate", &cameraTranslate.x, 0.01f);
 		ImGui::DragFloat3("CameraRotate", &cameraRotate.x, 0.01f);
-		ImGui::DragFloat3("SphereCenter", &sphere.center.x, 0.01f);
-		ImGui::DragFloat("SphereRadius", &sphere.radius, 0.01f);
+		ImGui::InputFloat3("Point", &point.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+		ImGui::InputFloat3("Segment.origin", &segment.origin.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+		ImGui::InputFloat3("Segment.diff", &segment.diff.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+		ImGui::InputFloat3("Project", &project.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
 		ImGui::End();
 
 		///
@@ -74,7 +89,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		viewProjectionMatrix = MakeViewProjectionMatrix(cameraRotate, cameraTranslate, { float(kWindowWidth),float(kWindowHeight) });
 
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
-		DrawSphere(sphere, viewProjectionMatrix, viewportMatrix, 0x000000FF);
+
+		DrawSphere(pointSphere, viewProjectionMatrix, viewportMatrix, RED);
+		DrawSphere(closestPointSphere, viewProjectionMatrix, viewportMatrix, BLACK);
+
+		Vector3 start = Transform(Transform(segment.origin, viewProjectionMatrix), viewportMatrix);
+		Vector3 end = Transform(Transform(Add(segment.origin, segment.diff), viewProjectionMatrix), viewportMatrix);
+		Novice::DrawLine(int(start.x), int(start.y), int(end.x), int(end.y), WHITE);
 
 		///
 		/// ↑描画処理ここまで
@@ -94,6 +115,25 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	return 0;
 }
 
+Vector3 Project(const Vector3& v1, const Vector3& v2)
+{
+	// 正射影ベクトル
+	return Multiply(Dot(v1, Normalize(v2)), Normalize(v2));
+}
+
+Vector3 ClosestPoint(const Vector3& point, const Segment& segment)
+{
+	// 最近接点
+	return Add(segment.origin, Project(Subtract(point,segment.origin),segment.diff));
+}
+
+/// <summary>
+/// Vector3の各数値を表示
+/// </summary>
+/// <param name="x">左上座標</param>
+/// <param name="y">左上座標</param>
+/// <param name="vector">表示するベクトル</param>
+/// <param name="label">名前</param>
 void VectorScreenPrintf(int x, int y, const Vector3& vector, const char* label) {
 	Novice::ScreenPrintf(x, y, "%.02f", vector.x);
 	Novice::ScreenPrintf(x + kColumnWidth, y, "%.02f", vector.y);
@@ -101,6 +141,13 @@ void VectorScreenPrintf(int x, int y, const Vector3& vector, const char* label) 
 	Novice::ScreenPrintf(x + kColumnWidth * 3, y, "%s", label);
 }
 
+/// <summary>
+/// 4x4行列の各要素を表示
+/// </summary>
+/// <param name="x">左上座標</param>
+/// <param name="y">左上座標</param>
+/// <param name="matrix">表示する行列</param>
+/// <param name="label">名前</param>
 void MatrixScreenPrintf(int x, int y, const Matrix4x4& matrix, const char* label) {
 	Novice::ScreenPrintf(x, y, "%s", label);
 	for (int row = 0; row < 4; ++row) {
