@@ -1,6 +1,7 @@
 #pragma once
 #include "Vector2.h"
 #include "Vector3.h"
+#include "Transform.h"
 #include <cassert>
 
 struct Matrix4x4 {
@@ -180,7 +181,7 @@ Matrix4x4 MakeScaleMatrix(const Vector3& scale) {
 /// <param name="vector">変換するベクトル</param>
 /// <param name="matrix">変換に使われる行列</param>
 /// <returns>変換後のベクトル</returns>
-Vector3 Transform(const Vector3& vector, const Matrix4x4 matrix) {
+Vector3 TransformVector(const Vector3& vector, const Matrix4x4 matrix) {
 	Vector3 result;
 	result.x = vector.x * matrix.m[0][0] + vector.y * matrix.m[1][0] + vector.z * matrix.m[2][0] + matrix.m[3][0];
 	result.y = vector.x * matrix.m[0][1] + vector.y * matrix.m[1][1] + vector.z * matrix.m[2][1] + matrix.m[3][1];
@@ -251,6 +252,29 @@ Matrix4x4 MakeRotateZMatrix(float radian) {
 	result.m[1][0] = -std::sinf(radian);
 	result.m[1][1] = std::cosf(radian);
 	result.m[2][2] = 1.0f;
+	result.m[3][3] = 1.0f;
+	return result;
+};
+
+/// <summary>
+/// 4x4アフィン変換行列作成
+/// </summary>
+/// <param name="transform">トランスフォーム</palam>
+Matrix4x4 MakeAffineMatrix(const Transform &transform) {
+	Matrix4x4 result = { 0 };
+	Matrix4x4 rotateXYZMatrix = Multiply(MakeRotateXMatrix(transform.rotate.x), Multiply(MakeRotateYMatrix(transform.rotate.y), MakeRotateZMatrix(transform.rotate.z)));
+	result.m[0][0] = transform.scale.x * rotateXYZMatrix.m[0][0];
+	result.m[0][1] = transform.scale.x * rotateXYZMatrix.m[0][1];
+	result.m[0][2] = transform.scale.x * rotateXYZMatrix.m[0][2];
+	result.m[1][0] = transform.scale.y * rotateXYZMatrix.m[1][0];
+	result.m[1][1] = transform.scale.y * rotateXYZMatrix.m[1][1];
+	result.m[1][2] = transform.scale.y * rotateXYZMatrix.m[1][2];
+	result.m[2][0] = transform.scale.z * rotateXYZMatrix.m[2][0];
+	result.m[2][1] = transform.scale.z * rotateXYZMatrix.m[2][1];
+	result.m[2][2] = transform.scale.z * rotateXYZMatrix.m[2][2];
+	result.m[3][0] = transform.translate.x;
+	result.m[3][1] = transform.translate.y;
+	result.m[3][2] = transform.translate.z;
 	result.m[3][3] = 1.0f;
 	return result;
 };
@@ -351,18 +375,32 @@ Matrix4x4 MakeViewportMatrix(float left, float top, float width, float height, f
 /// <summary>
 /// viewProjection行列作成
 /// </summary>
-/// <param name="cameraRotate">カメラ回転</param>
-/// <param name="cameraTranslate">カメラ移動</param>
-/// <param name="windowSize">画面サイズ(横幅、縦幅)</param>
+/// <param name="cameraTranform">カメラのトランスフォーム</param>
+/// <param name="aspectRatio">アスペクト比(横幅/縦幅)</param>
 /// <returns>viewProjection行列</returns>
-Matrix4x4 MakeViewProjectionMatrix(Vector3 cameraRotate,Vector3 cameraTranslate,Vector2 windowSize) {
+Matrix4x4 MakeViewProjectionMatrix(Transform cameraTransform, float aspectRatio) {
 	// カメラの移動や画角変更がある場合、毎フレーム一度だけ行えばいい
 	// カメラの変更がなければ変更する必要はない
-	Matrix4x4 cameraMatrix = MakeAffineMatrix({ 1.0f,1.0f,1.0f }, cameraRotate, cameraTranslate);
+	Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
 	Matrix4x4 viewMatrix = Inverse(cameraMatrix);
-	Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, windowSize.x / windowSize.y, 0.1f, 100.0f);
+	Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, aspectRatio, 0.1f, 100.0f);
 	return Multiply(viewMatrix, projectionMatrix);
-}
+};
+
+/// <summary>
+/// viewProjection行列作成
+/// </summary>
+/// <param name="cameraTranform">カメラのトランスフォーム</param>
+/// <param name="aspectRatio">アスペクト比(横幅/縦幅)</param>
+/// <returns>viewProjection行列</returns>
+Matrix4x4 MakeViewProjectionMatrix(Transform cameraTransform, Matrix4x4 perspectiveFovMatrix) {
+	// カメラの移動や画角変更がある場合、毎フレーム一度だけ行えばいい
+	// カメラの変更がなければ変更する必要はない
+	Matrix4x4 cameraMatrix = MakeAffineMatrix(cameraTransform.scale, cameraTransform.rotate, cameraTransform.translate);
+	Matrix4x4 viewMatrix = Inverse(cameraMatrix);
+	Matrix4x4 projectionMatrix = perspectiveFovMatrix;
+	return Multiply(viewMatrix, projectionMatrix);
+};
 
 /// <summary>
 /// ワールド座標をスクリーン座標へ変換
@@ -371,13 +409,13 @@ Matrix4x4 MakeViewProjectionMatrix(Vector3 cameraRotate,Vector3 cameraTranslate,
 /// <param name="rotate">回転</param>
 /// <param name="translate">平行移動</param>
 /// <param name="viewProjectionMatrix">ビューx射影行列</param>
-/// <param name="kWindowWidth">画面サイズ(横幅、縦幅)</param>
+/// <param name="kWindowSize>画面サイズ(横幅、縦幅)</param>
 /// <returns>スクリーン座標</returns>
 Vector3 WorldToScreen(Vector3 worldPos, Vector3 scale, Vector3 rotate, Vector3 translate, Matrix4x4 viewProjectionMatrix, Vector2 windowSize) {
 	Matrix4x4 worldMatrix = MakeAffineMatrix(scale, rotate, translate);
 	Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, viewProjectionMatrix);	// ビュー行列、射影行列は事前に計算したものを使う
 	Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, windowSize.x, windowSize.y, 0.0f, 1.0f);
 
-	Vector3 ndcPos = Transform(worldPos, worldViewProjectionMatrix);
-	return Transform(ndcPos, viewportMatrix);
-}
+	Vector3 ndcPos = TransformVector(worldPos, worldViewProjectionMatrix);
+	return TransformVector(ndcPos, viewportMatrix);
+};

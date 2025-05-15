@@ -39,19 +39,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	char preKeys[256] = { 0 };
 
 	// 変数の宣言
-	Vector3 cameraTranslate{ 0.0f,1.9f,-6.49f };
-	Vector3 cameraRotate{ 0.26f,0.0f,0.0f };
+	Transform cameraTransform = { {1.0f,1.0f,1.0f},{ 0.26f,0.0f,0.0f },{ 0.0f,1.9f,-6.49f } };
 	int kWindowWidth = 1280;
 	int kWindowHeight = 720;
-	Matrix4x4 viewProjectionMatrix = MakeViewProjectionMatrix(cameraRotate, cameraTranslate, { float(kWindowWidth),float(kWindowHeight) });
+	Matrix4x4 viewProjectionMatrix = MakeViewProjectionMatrix(cameraTransform, float(kWindowWidth) / float(kWindowHeight));
 	Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, float(kWindowWidth), float(kWindowHeight), 0.0f, 1.0f);
 
-	Segment segment{ {-2.0f,-1.0f,0.0f},{3.0f,2.0f,2.0f} };
-	Vector3 point{ -1.5f,0.6f,0.6f };
-	Vector3 project = Project(Subtract(point, segment.origin), segment.diff);
-	Vector3 closestPoint = ClosestPoint(point, segment);
-	Sphere pointSphere{ point, 0.01f };
-	Sphere closestPointSphere{ closestPoint,0.01f };
+	Sphere sphere[2];
+	sphere[0] = { { 0.0f, 0.0f, 0.0f }, 0.6f };
+	sphere[1] = { { 1.0f, 0.0f, 1.0f }, 0.4f };
+	bool isCollision = false;
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
@@ -68,13 +65,50 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 
 		// 更新処理
+		float distance = Length(Subtract(sphere[1].center, sphere[0].center));
+		// 半径の和より距離が小さければ衝突
+		if (distance <= sphere[0].radius + sphere[1].radius) {
+			isCollision = true;
+		} else {
+			isCollision = false;
+		}
+
 		ImGui::Begin("Window");
-		ImGui::DragFloat3("CameraTranslate", &cameraTranslate.x, 0.01f);
-		ImGui::DragFloat3("CameraRotate", &cameraRotate.x, 0.01f);
-		ImGui::InputFloat3("Point", &point.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
-		ImGui::InputFloat3("Segment.origin", &segment.origin.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
-		ImGui::InputFloat3("Segment.diff", &segment.diff.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
-		ImGui::InputFloat3("Project", &project.x, "%.3f", ImGuiInputTextFlags_ReadOnly);
+		ImGui::DragFloat3("Sphere[0].center", &sphere[0].center.x, 0.01f);
+		ImGui::DragFloat("Sphere[0].radius", &sphere[0].radius, 0.01f);
+		ImGui::DragFloat3("Sphere[1].center", &sphere[1].center.x, 0.01f);
+		ImGui::DragFloat("Sphere[1].radius", &sphere[1].radius, 0.01f);
+
+		ImGuiIO& io = ImGui::GetIO();
+		float moveSpeedDebug = 0.01f;
+		float cameraSpeedDebug = 0.001f;
+		if (io.KeysDown[ImGuiKey_LeftShift] || io.KeysDown[ImGuiKey_RightShift]) {
+			moveSpeedDebug *= 2.0f;
+		}
+
+		if (ImGui::IsMouseDown(1) && !ImGui::IsAnyItemActive()) { // 右クリック中
+			cameraTransform.rotate.y += io.MouseDelta.x * cameraSpeedDebug;
+			cameraTransform.rotate.x += io.MouseDelta.y * cameraSpeedDebug;
+		}
+		// 移動(初期カメラ向きを基準)
+		if (io.KeysDown[ImGuiKey_A]) {
+			cameraTransform.translate.x -= moveSpeedDebug; // 左
+		}
+		if (io.KeysDown[ImGuiKey_D]) {
+			cameraTransform.translate.x += moveSpeedDebug; // 右
+		}
+		if (io.KeysDown[ImGuiKey_Q]) {
+			cameraTransform.translate.y -= moveSpeedDebug; // 下
+		}
+		if (io.KeysDown[ImGuiKey_E]) {
+			cameraTransform.translate.y += moveSpeedDebug; // 上
+		}
+		if (io.KeysDown[ImGuiKey_W]) {
+			cameraTransform.translate.z += moveSpeedDebug; // 前
+		}
+		if (io.KeysDown[ImGuiKey_S]) {
+			cameraTransform.translate.z -= moveSpeedDebug; // 後
+		}
 		ImGui::End();
 
 		///
@@ -86,16 +120,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///
 
 		// ビューx射影行列の作成
-		viewProjectionMatrix = MakeViewProjectionMatrix(cameraRotate, cameraTranslate, { float(kWindowWidth),float(kWindowHeight) });
+		viewProjectionMatrix = MakeViewProjectionMatrix(cameraTransform, float(kWindowWidth) / float(kWindowHeight));
 
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
-		DrawSphere(pointSphere, viewProjectionMatrix, viewportMatrix, RED);
-		DrawSphere(closestPointSphere, viewProjectionMatrix, viewportMatrix, BLACK);
+		if (isCollision) {
+			DrawSphere(sphere[0], viewProjectionMatrix, viewportMatrix, RED);
+		} else {
+			DrawSphere(sphere[0], viewProjectionMatrix, viewportMatrix, WHITE);
+		}
+		DrawSphere(sphere[1], viewProjectionMatrix, viewportMatrix, WHITE);
 
-		Vector3 start = Transform(Transform(segment.origin, viewProjectionMatrix), viewportMatrix);
-		Vector3 end = Transform(Transform(Add(segment.origin, segment.diff), viewProjectionMatrix), viewportMatrix);
-		Novice::DrawLine(int(start.x), int(start.y), int(end.x), int(end.y), WHITE);
+		
 
 		///
 		/// ↑描画処理ここまで
@@ -124,7 +160,7 @@ Vector3 Project(const Vector3& v1, const Vector3& v2)
 Vector3 ClosestPoint(const Vector3& point, const Segment& segment)
 {
 	// 最近接点
-	return Add(segment.origin, Project(Subtract(point,segment.origin),segment.diff));
+	return Add(segment.origin, Project(Subtract(point, segment.origin), segment.diff));
 }
 
 /// <summary>
@@ -175,8 +211,8 @@ void DrawGrid(const Matrix4x4& viewProjectionMatrix, const Matrix4x4 viewportMat
 		Vector3 start = { -kGridHalfWidth + kGridEvery * xIndex, 0.0f, -kGridHalfWidth };
 		Vector3 end = { -kGridHalfWidth + kGridEvery * xIndex, 0.0f, kGridHalfWidth };
 		// 座標変換
-		Vector3 startScreen = Transform(start, screenTransformMatrix);
-		Vector3 endScreen = Transform(end, screenTransformMatrix);
+		Vector3 startScreen = TransformVector(start, screenTransformMatrix);
+		Vector3 endScreen = TransformVector(end, screenTransformMatrix);
 		// 変換した座標を使って表示
 		Novice::DrawLine(int(startScreen.x), int(startScreen.y),
 			int(endScreen.x), int(endScreen.y), 0xAAAAAAFF);
@@ -188,8 +224,8 @@ void DrawGrid(const Matrix4x4& viewProjectionMatrix, const Matrix4x4 viewportMat
 		Vector3 start = { -kGridHalfWidth, 0.0f, -kGridHalfWidth + kGridEvery * zIndex };
 		Vector3 end = { kGridHalfWidth, 0.0f, -kGridHalfWidth + kGridEvery * zIndex };
 		// 座標変換
-		Vector3 startScreen = Transform(start, screenTransformMatrix);
-		Vector3 endScreen = Transform(end, screenTransformMatrix);
+		Vector3 startScreen = TransformVector(start, screenTransformMatrix);
+		Vector3 endScreen = TransformVector(end, screenTransformMatrix);
 		// 変換した座標を使って表示
 		Novice::DrawLine(int(startScreen.x), int(startScreen.y),
 			int(endScreen.x), int(endScreen.y), 0xAAAAAAFF);
@@ -229,9 +265,9 @@ void DrawSphere(const Sphere& sphere, const Matrix4x4& viewProjectionMatrix, con
 					{ cos(lat) * cos(lon + kLonEvery), sin(lat), cos(lat) * sin(lon + kLonEvery) }));
 
 			// a,b,cをScreen座標系に変換
-			Vector3 aScreen = Transform(a, screenTransformMatrix);
-			Vector3 bScreen = Transform(b, screenTransformMatrix);
-			Vector3 cScreen = Transform(c, screenTransformMatrix);
+			Vector3 aScreen = TransformVector(a, screenTransformMatrix);
+			Vector3 bScreen = TransformVector(b, screenTransformMatrix);
+			Vector3 cScreen = TransformVector(c, screenTransformMatrix);
 			// 画面に描画
 			Novice::DrawLine(int(aScreen.x), int(aScreen.y), int(bScreen.x), int(bScreen.y), color);
 			Novice::DrawLine(int(aScreen.x), int(aScreen.y), int(cScreen.x), int(cScreen.y), color);
