@@ -11,8 +11,20 @@ struct Sphere {
 	float radius;
 };
 
-//  線(線分)
+//  線分
 struct Segment {
+	Vector3 origin;
+	Vector3 diff;
+};
+
+// 直線
+struct Line {
+	Vector3 origin;
+	Vector3 diff;
+};
+
+// 半直線
+struct Ray {
 	Vector3 origin;
 	Vector3 diff;
 };
@@ -26,8 +38,8 @@ struct Plane {
 Vector3 Project(const Vector3& v1, const  Vector3& v2);
 Vector3 ClosestPoint(const Vector3& point, const Segment& segment);
 bool CheckCollision(const Sphere& sphere, const Plane& plane);
+bool CheckCollision(const Segment& segment, const Plane& plane);
 Vector3 Perpendicular(const Vector3& vector);
-void DrawPlane(const Plane& plane, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 
 // 表示用の関数
 static const int kColumnWidth = 60;
@@ -36,6 +48,7 @@ void VectorScreenPrintf(int x, int y, const Vector3& vector, const char* label);
 void MatrixScreenPrintf(int x, int y, const Matrix4x4& matrix, const char* label);
 void DrawSphere(const Sphere& sphere, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 void DrawGrid(const Matrix4x4& viewProjectionMatrix, const Matrix4x4 viewportMatrix);
+void DrawPlane(const Plane& plane, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
@@ -57,8 +70,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Plane plane;
 	plane.normal = { 0.0f,1.0f,0.0f };
 
-	Sphere sphere;
-	sphere = { { 0.0f, 0.0f, 0.0f }, 0.5f };
+	Segment segment;
+	segment.origin = { -2.0f,-1.0f,0.0f };
+	segment.diff = { 3.0f,2.0f,2.0f };
 	bool isCollision = false;
 
 	// ウィンドウの×ボタンが押されるまでループ
@@ -77,11 +91,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		// 距離を求める(平面が原点から法線方向に離れている距離)
 		plane.distance = Dot({0.0f,1.0f,0.0f}, plane.normal);
 
-		isCollision = CheckCollision(sphere, plane);
+		isCollision = CheckCollision(segment, plane);
 
 		ImGui::Begin("Window");
-		ImGui::DragFloat3("Sphere.center", &sphere.center.x, 0.01f);
-		ImGui::DragFloat("Sphere.radius", &sphere.radius, 0.01f);
+		ImGui::DragFloat3("Segment.origin", &segment.origin.x, 0.01f);
+		ImGui::DragFloat("Segment.diff", &segment.diff.x, 0.01f);
 		ImGui::DragFloat3("Plane.Normal", &plane.normal.x, 0.01f);
 		plane.normal = Normalize(plane.normal);
 		ImGui::DragFloat("Plane.Distance", &plane.distance, 0.01f);
@@ -135,10 +149,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		// 平面の描画
 		DrawPlane(plane, viewProjectionMatrix, viewportMatrix, WHITE);
 
+		Vector3 start = TransformVector(TransformVector(segment.origin, viewProjectionMatrix), viewportMatrix);
+		Vector3 end = TransformVector(TransformVector(Add(segment.origin, segment.diff), viewProjectionMatrix), viewportMatrix);
+		
 		if (isCollision) {
-			DrawSphere(sphere, viewProjectionMatrix, viewportMatrix, RED);
+			Novice::DrawLine(int(start.x), int(start.y), int(end.x), int(end.y), RED);
 		} else {
-			DrawSphere(sphere, viewProjectionMatrix, viewportMatrix, WHITE);
+			Novice::DrawLine(int(start.x), int(start.y), int(end.x), int(end.y), WHITE);
 		}
 
 
@@ -171,16 +188,52 @@ Vector3 ClosestPoint(const Vector3& point, const Segment& segment) {
 	return Add(segment.origin, Project(Subtract(point, segment.origin), segment.diff));
 }
 
-
+// 球と平面の衝突判定
 bool CheckCollision(const Sphere& sphere, const Plane& plane) {
 	// 平面と点の距離
-	float distance = fabs(Dot(plane.normal, sphere.center) - plane.distance); // 符号なし
+	float k = fabs(Dot(plane.normal, sphere.center) - plane.distance); // 符号なし
 
 	// 半径より距離が小さければ衝突
-	return distance <= sphere.radius;
+	return k <= sphere.radius;
 }
 
-// 垂直なベクトル
+// 線分と平面の衝突判定
+bool CheckCollision(const Segment& segment, const Plane& plane){
+	// 法線と線の内積
+	float dot = Dot(plane.normal, segment.diff);
+	if (dot == 0.0f) { return false; } // 平行な場合衝突しない
+
+	float t = (plane.distance - Dot(segment.origin, plane.normal)) / dot;
+	if (0 <= t  && t <= 1) { // 線分の範囲内なら衝突
+		return true; 
+	}
+	return false;
+}
+
+// 直線と平面の衝突判定
+bool CheckCollision(const Line& line, const Plane& plane) {
+	// 法線と線の内積
+	float dot = Dot(plane.normal, line.diff);
+	if (dot == 0.0f) { return false; } // 平行な場合衝突しない
+	
+	// 平行でなければどこかで衝突する
+	return true;
+}
+
+// 半直線と平面の衝突判定
+bool CheckCollision(const Ray ray, const Plane& plane) {
+	// 法線と線の内積
+	float dot = Dot(plane.normal, ray.diff);
+	if (dot == 0.0f) { return false; } // 平行な場合衝突しない
+
+	float t = (plane.distance - Dot(ray.origin, plane.normal)) / dot;
+	if (t >= 0) {
+		return true;
+	}
+	return false;
+}
+
+// 垂直ベクトルを求める
 Vector3 Perpendicular(const Vector3& vector) {
 	if (vector.x != 0.0f || vector.y != 0.0f) {
 		return { -vector.y,vector.x,0.0f };
