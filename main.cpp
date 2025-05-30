@@ -58,6 +58,7 @@ bool CheckCollision(const Triangle& triangle, const Line& line);
 bool CheckCollision(const Triangle& triangle, const Ray& ray);
 bool CheckCollision(const AABB& aabb1, const AABB& aabb2);
 bool CheckCollision(const AABB& aabb, const Sphere& sphere);
+bool CheckCollision(const AABB& aabb, const Segment& segment);
 Vector3 Perpendicular(const Vector3& vector);
 
 // 表示用の関数
@@ -88,8 +89,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Matrix4x4 viewProjectionMatrix = MakeViewProjectionMatrix(cameraTransform, float(kWindowWidth) / float(kWindowHeight));
 	Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, float(kWindowWidth), float(kWindowHeight), 0.0f, 1.0f);
 
-	AABB aabb = { {-0.5f,-0.5f,-0.5f},{0.0f,0.0f,0.0f} };
-	Sphere sphere = { { 0.2f, 0.2f, 0.2f},0.5f };
+	AABB aabb = { {-0.5f,-0.5f,-0.5f},{0.5f,0.5f,0.5f} };
+	Segment segment = { {-0.7f,0.3f,0.0f},{2.0f,-0.5f,0.0f} };
 
 	bool isCollision = false;
 
@@ -106,18 +107,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		/// ↓更新処理ここから
 		///
 
-		isCollision = CheckCollision(aabb,sphere);
+		isCollision = CheckCollision(aabb, segment);
 
 		ImGui::Begin("Window");
 		ImGui::DragFloat3("AABB.min", &aabb.min.x, 0.01f);
 		ImGui::DragFloat3("AABB.max", &aabb.max.x, 0.01f);
-		ImGui::DragFloat3("Sphere.center", &sphere.center.x, 0.01f);
-		ImGui::DragFloat("Sphere.radius", &sphere.radius, 0.01f);
+		ImGui::DragFloat3("Segment.origin", &segment.origin.x, 0.01f);
+		ImGui::DragFloat3("Segment.diff", &segment.diff.x, 0.01f);
 		// min・maxが正しいか確認
 		aabb.min.x = (std::min)(aabb.min.x, aabb.max.x); aabb.max.x = (std::max)(aabb.min.x, aabb.max.x);
 		aabb.min.y = (std::min)(aabb.min.y, aabb.max.y); aabb.max.y = (std::max)(aabb.min.y, aabb.max.y);
 		aabb.min.z = (std::min)(aabb.min.z, aabb.max.z); aabb.max.z = (std::max)(aabb.min.z, aabb.max.z);
-		
+
 
 
 		// デバッグ用カメラ操作
@@ -172,7 +173,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		} else {
 			DrawAABB(aabb, viewProjectionMatrix, viewportMatrix, WHITE);
 		}
-		DrawSphere(sphere, viewProjectionMatrix, viewportMatrix, WHITE);
+		// 線分の描画
+		Vector3 start = TransformVector(TransformVector(segment.origin, viewProjectionMatrix), viewportMatrix);
+		Vector3 end = TransformVector(TransformVector(Add(segment.origin, segment.diff), viewProjectionMatrix), viewportMatrix);
+		Novice::DrawLine(int(start.x), int(start.y), int(end.x), int(end.y), WHITE);
 
 
 		///
@@ -344,9 +348,9 @@ bool CheckCollision(const AABB& aabb1, const AABB& aabb2) {
 }
 
 // AABBと球の衝突判定
-bool CheckCollision(const AABB& aabb, const Sphere& sphere){
+bool CheckCollision(const AABB& aabb, const Sphere& sphere) {
 	// 最近接点を求める
-	Vector3 closestPoint = { 
+	Vector3 closestPoint = {
 		std::clamp(sphere.center.x, aabb.min.x, aabb.max.x),
 		std::clamp(sphere.center.y, aabb.min.y, aabb.max.y),
 		std::clamp(sphere.center.z, aabb.min.z, aabb.max.z),
@@ -357,6 +361,122 @@ bool CheckCollision(const AABB& aabb, const Sphere& sphere){
 	if (distance <= sphere.radius) {
 		return true;
 	}
+	return false;
+}
+
+bool CheckCollision(const AABB& aabb, const Segment& segment) {
+	// 各平面の媒介変数を求める
+	Vector3 tMin = {
+		(aabb.min.x - segment.origin.x) / segment.diff.x,
+		(aabb.min.y - segment.origin.y) / segment.diff.y,
+		(aabb.min.z - segment.origin.z) / segment.diff.z
+	};
+	Vector3 tMax = {
+		(aabb.max.x - segment.origin.x) / segment.diff.x,
+		(aabb.max.y - segment.origin.y) / segment.diff.y,
+		(aabb.max.z - segment.origin.z) / segment.diff.z
+	};
+
+	Vector3 tNear = {
+		min(tMin.x, tMax.x),
+		min(tMin.y, tMax.y),
+		min(tMin.z, tMax.z) 
+	};
+	Vector3 tFar = {
+		max(tMin.x, tMax.x),
+		max(tMin.y, tMax.y),
+		max(tMin.z, tMax.z) 
+	};
+
+	// 衝突(貫通)している点
+	float min = max(max(tNear.x, tNear.y), tNear.z);
+	float max = min(min(tFar.x, tFar.y), tFar.z);
+
+	// 線分の範囲と衝突しているか
+	if (min <= max && (0.0f <= max && min <= 1.0f)) {
+
+		// 衝突
+		return true;
+	}
+
+	return false;
+}
+
+// AABBと直線の衝突判定
+bool CheckCollision(const AABB& aabb, const Line& line) {
+	// 各平面の媒介変数を求める
+	Vector3 tMin = {
+		(aabb.min.x - line.origin.x) / line.diff.x,
+		(aabb.min.y - line.origin.y) / line.diff.y,
+		(aabb.min.z - line.origin.z) / line.diff.z
+	};
+	Vector3 tMax = {
+		(aabb.max.x - line.origin.x) / line.diff.x,
+		(aabb.max.y - line.origin.y) / line.diff.y,
+		(aabb.max.z - line.origin.z) / line.diff.z
+	};
+
+	Vector3 tNear = {
+		min(tMin.x, tMax.x),
+		min(tMin.y, tMax.y),
+		min(tMin.z, tMax.z)
+	};
+	Vector3 tFar = {
+		max(tMin.x, tMax.x),
+		max(tMin.y, tMax.y),
+		max(tMin.z, tMax.z)
+	};
+
+	// 衝突(貫通)している点
+	float min = max(max(tNear.x, tNear.y), tNear.z);
+	float max = min(min(tFar.x, tFar.y), tFar.z);
+
+	// 直線の範囲と衝突しているか
+	if (min <= max) {
+
+		// 衝突
+		return true;
+	}
+
+	return false;
+}
+
+// AABBと半直線の衝突判定
+bool CheckCollision(const AABB& aabb, const Ray& ray) {
+	// 各平面の媒介変数を求める
+	Vector3 tMin = {
+		(aabb.min.x - ray.origin.x) / ray.diff.x,
+		(aabb.min.y - ray.origin.y) / ray.diff.y,
+		(aabb.min.z - ray.origin.z) / ray.diff.z
+	};
+	Vector3 tMax = {
+		(aabb.max.x - ray.origin.x) / ray.diff.x,
+		(aabb.max.y - ray.origin.y) / ray.diff.y,
+		(aabb.max.z - ray.origin.z) / ray.diff.z
+	};
+
+	Vector3 tNear = {
+		min(tMin.x, tMax.x),
+		min(tMin.y, tMax.y),
+		min(tMin.z, tMax.z)
+	};
+	Vector3 tFar = {
+		max(tMin.x, tMax.x),
+		max(tMin.y, tMax.y),
+		max(tMin.z, tMax.z)
+	};
+
+	// 衝突(貫通)している点
+	float min = max(max(tNear.x, tNear.y), tNear.z);
+	float max = min(min(tFar.x, tFar.y), tFar.z);
+
+	// 半直線の範囲と衝突しているか
+	if (min <= max && 0.0f <= max) {
+
+		// 衝突
+		return true;
+	}
+
 	return false;
 }
 
@@ -405,7 +525,7 @@ void DrawTriangle(const Triangle& triangle, const Matrix4x4& viewProjectionMatri
 }
 
 // AABB描画
-void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color){
+void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color) {
 	Vector3 points[8];
 	// 頂点を求める
 	points[0] = { aabb.min.x, aabb.min.y, aabb.min.z };
