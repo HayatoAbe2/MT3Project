@@ -47,8 +47,16 @@ struct AABB {
 	Vector3 max; // 最大点
 };
 
+// OBB
+struct OBB {
+	Vector3 center; // 中心点
+	Vector3 orientations[3]; // 各軸の方向ベクトル
+	Vector3 size; // 各軸の長さの半分
+};
+
 Vector3 Project(const Vector3& v1, const  Vector3& v2);
 Vector3 ClosestPoint(const Vector3& point, const Segment& segment);
+Vector3 Lerp(const Vector3& v1, const Vector3& v2, float t);
 bool CheckCollision(const Sphere& sphere, const Plane& plane);
 bool CheckCollision(const Segment& segment, const Plane& plane);
 bool CheckCollision(const Line& line, const Plane& plane);
@@ -71,6 +79,8 @@ void DrawGrid(const Matrix4x4& viewProjectionMatrix, const Matrix4x4 viewportMat
 void DrawPlane(const Plane& plane, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 void DrawTriangle(const Triangle& triangle, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
+void DrawBezier(const Vector3& controlPoint0, const Vector3& controlPoint1, const Vector3& controlPoint2,
+	const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color);
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
@@ -89,10 +99,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Matrix4x4 viewProjectionMatrix = MakeViewProjectionMatrix(cameraTransform, float(kWindowWidth) / float(kWindowHeight));
 	Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, float(kWindowWidth), float(kWindowHeight), 0.0f, 1.0f);
 
-	AABB aabb = { {-0.5f,-0.5f,-0.5f},{0.5f,0.5f,0.5f} };
-	Segment segment = { {-0.7f,0.3f,0.0f},{2.0f,-0.5f,0.0f} };
-
-	bool isCollision = false;
+	Vector3 controlPoints[3] = {
+		{-0.8f, 0.58f, 1.0f },
+		{1.76f, 1.0f, -0.3f },
+		{0.94f, -0.7f,2.3f},
+	};
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
@@ -107,19 +118,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		/// ↓更新処理ここから
 		///
 
-		isCollision = CheckCollision(aabb, segment);
-
 		ImGui::Begin("Window");
-		ImGui::DragFloat3("AABB.min", &aabb.min.x, 0.01f);
-		ImGui::DragFloat3("AABB.max", &aabb.max.x, 0.01f);
-		ImGui::DragFloat3("Segment.origin", &segment.origin.x, 0.01f);
-		ImGui::DragFloat3("Segment.diff", &segment.diff.x, 0.01f);
-		// min・maxが正しいか確認
-		aabb.min.x = (std::min)(aabb.min.x, aabb.max.x); aabb.max.x = (std::max)(aabb.min.x, aabb.max.x);
-		aabb.min.y = (std::min)(aabb.min.y, aabb.max.y); aabb.max.y = (std::max)(aabb.min.y, aabb.max.y);
-		aabb.min.z = (std::min)(aabb.min.z, aabb.max.z); aabb.max.z = (std::max)(aabb.min.z, aabb.max.z);
-
-
+		ImGui::DragFloat3("ControlPoints[0]", &controlPoints[0].x, 0.01f);
+		ImGui::DragFloat3("ControlPoints[1]", &controlPoints[1].x, 0.01f);
+		ImGui::DragFloat3("ControlPoints[2]", &controlPoints[2].x, 0.01f);
 
 		// デバッグ用カメラ操作
 		ImGuiIO& io = ImGui::GetIO();
@@ -167,17 +169,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
-		// AABBの描画
-		if (isCollision) {
-			DrawAABB(aabb, viewProjectionMatrix, viewportMatrix, RED);
-		} else {
-			DrawAABB(aabb, viewProjectionMatrix, viewportMatrix, WHITE);
-		}
-		// 線分の描画
-		Vector3 start = TransformVector(TransformVector(segment.origin, viewProjectionMatrix), viewportMatrix);
-		Vector3 end = TransformVector(TransformVector(Add(segment.origin, segment.diff), viewProjectionMatrix), viewportMatrix);
-		Novice::DrawLine(int(start.x), int(start.y), int(end.x), int(end.y), WHITE);
-
+		// 曲線と制御点
+		DrawBezier(controlPoints[0], controlPoints[1], controlPoints[2], viewProjectionMatrix, viewportMatrix, BLUE);
+		DrawSphere({ controlPoints[0],0.01f }, viewProjectionMatrix, viewportMatrix, BLACK);
+		DrawSphere({ controlPoints[1],0.01f }, viewProjectionMatrix, viewportMatrix, BLACK);
+		DrawSphere({ controlPoints[2],0.01f }, viewProjectionMatrix, viewportMatrix, BLACK);
 
 		///
 		/// ↑描画処理ここまで
@@ -380,12 +376,12 @@ bool CheckCollision(const AABB& aabb, const Segment& segment) {
 	Vector3 tNear = {
 		min(tMin.x, tMax.x),
 		min(tMin.y, tMax.y),
-		min(tMin.z, tMax.z) 
+		min(tMin.z, tMax.z)
 	};
 	Vector3 tFar = {
 		max(tMin.x, tMax.x),
 		max(tMin.y, tMax.y),
-		max(tMin.z, tMax.z) 
+		max(tMin.z, tMax.z)
 	};
 
 	// 衝突(貫通)している点
@@ -555,6 +551,26 @@ void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Mat
 		const Vector3& p0 = points[edge[i][0]];
 		const Vector3& p1 = points[edge[i][1]];
 		Novice::DrawLine(int(p0.x), int(p0.y), int(p1.x), int(p1.y), color);
+	}
+}
+
+// 2次ベジェ曲線描画
+void DrawBezier(const Vector3& controlPoint0, const Vector3& controlPoint1, const Vector3& controlPoint2, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color){
+	float t = 0.0f;
+	const int kSubdivision = 32; // 分割数
+	Vector3 p = controlPoint0;
+	for (int i = 0; i < kSubdivision; ++i) {
+		t = float(i + 1) / float(kSubdivision);
+		Vector3 p0p1 = Lerp(controlPoint0, controlPoint1, t); // 制御点0,1を線形補間
+		Vector3 p1p2 = Lerp(controlPoint1, controlPoint2, t); // 制御点1,2を線形補間
+		Vector3 preP = p;
+		p = Lerp(p0p1, p1p2, t); // 二つの点を線形補間
+		
+		// スクリーン座標へ変換
+		Vector3 screenPoint0 = TransformVector(TransformVector(preP, viewProjectionMatrix), viewportMatrix);
+		Vector3 screenPoint1 = TransformVector(TransformVector(p, viewProjectionMatrix), viewportMatrix);
+		
+		Novice::DrawLine(int(screenPoint0.x), int(screenPoint0.y), int(screenPoint1.x), int(screenPoint1.y), color);
 	}
 }
 
