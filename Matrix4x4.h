@@ -401,21 +401,3 @@ Matrix4x4 MakeViewProjectionMatrix(Transform cameraTransform, Matrix4x4 perspect
 	Matrix4x4 projectionMatrix = perspectiveFovMatrix;
 	return Multiply(viewMatrix, projectionMatrix);
 };
-
-/// <summary>
-/// ワールド座標をスクリーン座標へ変換
-/// </summary>
-/// <param name="scale">拡大</param>
-/// <param name="rotate">回転</param>
-/// <param name="translate">平行移動</param>
-/// <param name="viewProjectionMatrix">ビューx射影行列</param>
-/// <param name="kWindowSize>画面サイズ(横幅、縦幅)</param>
-/// <returns>スクリーン座標</returns>
-Vector3 WorldToScreen(Vector3 worldPos, Vector3 scale, Vector3 rotate, Vector3 translate, Matrix4x4 viewProjectionMatrix, Vector2 windowSize) {
-	Matrix4x4 worldMatrix = MakeAffineMatrix(scale, rotate, translate);
-	Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, viewProjectionMatrix);	// ビュー行列、射影行列は事前に計算したものを使う
-	Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, windowSize.x, windowSize.y, 0.0f, 1.0f);
-
-	Vector3 ndcPos = TransformVector(worldPos, worldViewProjectionMatrix);
-	return TransformVector(ndcPos, viewportMatrix);
-};

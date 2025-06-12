@@ -99,10 +99,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Matrix4x4 viewProjectionMatrix = MakeViewProjectionMatrix(cameraTransform, float(kWindowWidth) / float(kWindowHeight));
 	Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, float(kWindowWidth), float(kWindowHeight), 0.0f, 1.0f);
 
-	Vector3 controlPoints[3] = {
-		{-0.8f, 0.58f, 1.0f },
-		{1.76f, 1.0f, -0.3f },
-		{0.94f, -0.7f,2.3f},
+	Vector3 translates[3] = {
+		{0.2f,1.0f,0.0f},
+		{0.4f,0.0f,0.0f},
+		{0.3f,0.0f,0.0f},
+	};
+
+	Vector3 rotates[3] = {
+		{0.0f,0.0f,-6.8f},
+		{0.0f,0.0f,-1.4f},
+		{0.0f,0.0f,0.0f},
+	};
+
+	Vector3 scales[3] = {
+		{1.0f,1.0f,1.0f},
+		{1.0f,1.0f,1.0f},
+		{1.0f,1.0f,1.0f},
 	};
 
 	// ウィンドウの×ボタンが押されるまでループ
@@ -119,9 +131,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///
 
 		ImGui::Begin("Window");
-		ImGui::DragFloat3("ControlPoints[0]", &controlPoints[0].x, 0.01f);
-		ImGui::DragFloat3("ControlPoints[1]", &controlPoints[1].x, 0.01f);
-		ImGui::DragFloat3("ControlPoints[2]", &controlPoints[2].x, 0.01f);
+		ImGui::DragFloat3("Translates[0]", &translates[0].x, 0.01f);
+		ImGui::DragFloat3("Rotates[0]", &rotates[0].x, 0.01f);
+		ImGui::DragFloat3("Scales[0]", &scales[0].x, 0.01f);
+		ImGui::DragFloat3("Translates[1]", &translates[1].x, 0.01f);
+		ImGui::DragFloat3("Rotates[1]", &rotates[1].x, 0.01f);
+		ImGui::DragFloat3("Scales[1]", &scales[1].x, 0.01f);
+		ImGui::DragFloat3("Translates[2]", &translates[2].x, 0.01f);
+		ImGui::DragFloat3("Rotates[2]", &rotates[2].x, 0.01f);
+		ImGui::DragFloat3("Scales[2]", &scales[2].x, 0.01f);
 
 		// デバッグ用カメラ操作
 		ImGuiIO& io = ImGui::GetIO();
@@ -156,6 +174,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 		ImGui::End();
 
+		Matrix4x4 localMatrix[3];
+		localMatrix[0] = MakeAffineMatrix(scales[0], rotates[0], translates[0]);
+		localMatrix[1] = MakeAffineMatrix(scales[1], rotates[1], translates[1]);
+		localMatrix[2] = MakeAffineMatrix(scales[2], rotates[2], translates[2]);
+
+		Matrix4x4 worldMatrix[3];
+		worldMatrix[0] = localMatrix[0];
+		worldMatrix[1] = Multiply(localMatrix[1], worldMatrix[0]);
+		worldMatrix[2] = Multiply(localMatrix[2], worldMatrix[1]);
+
 		///
 		/// ↑更新処理ここまで
 		///
@@ -169,11 +197,28 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
-		// 曲線と制御点
-		DrawBezier(controlPoints[0], controlPoints[1], controlPoints[2], viewProjectionMatrix, viewportMatrix, BLUE);
-		DrawSphere({ controlPoints[0],0.01f }, viewProjectionMatrix, viewportMatrix, BLACK);
-		DrawSphere({ controlPoints[1],0.01f }, viewProjectionMatrix, viewportMatrix, BLACK);
-		DrawSphere({ controlPoints[2],0.01f }, viewProjectionMatrix, viewportMatrix, BLACK);
+		// ワールド座標
+		Vector3 points[3] = {
+		TransformVector({}, worldMatrix[0]),
+		TransformVector({}, worldMatrix[1]),
+		TransformVector({}, worldMatrix[2])
+		};
+
+		// 球描画
+		DrawSphere({ points[0],0.03f }, viewProjectionMatrix, viewportMatrix, RED);
+		DrawSphere({ points[1],0.03f }, viewProjectionMatrix, viewportMatrix, GREEN);
+		DrawSphere({ points[2],0.03f }, viewProjectionMatrix, viewportMatrix, BLUE);
+
+		// スクリーン座標
+		Vector3 screenPoints[3] = {
+			TransformVector(points[0],Multiply(viewProjectionMatrix,viewportMatrix)),
+			TransformVector(points[1],Multiply(viewProjectionMatrix,viewportMatrix)),
+			TransformVector(points[2],Multiply(viewProjectionMatrix,viewportMatrix)),
+		};
+
+		// 線描画
+		Novice::DrawLine(int(screenPoints[0].x), int(screenPoints[0].y), int(screenPoints[1].x), int(screenPoints[1].y), WHITE);
+		Novice::DrawLine(int(screenPoints[1].x), int(screenPoints[1].y), int(screenPoints[2].x), int(screenPoints[2].y), WHITE);
 
 		///
 		/// ↑描画処理ここまで
@@ -278,8 +323,7 @@ bool CheckCollision(const Triangle& triangle, const Segment& segment) {
 }
 
 // 三角形と直線の衝突判定
-bool CheckCollision(const Triangle& triangle, const Line& line)
-{
+bool CheckCollision(const Triangle& triangle, const Line& line) {
 	// 三角形から平面を求める
 	Plane plane;
 	Vector3 v1 = Subtract(triangle.vertices[1], triangle.vertices[0]);
@@ -305,8 +349,7 @@ bool CheckCollision(const Triangle& triangle, const Line& line)
 }
 
 // 三角形と半直線の衝突判定
-bool CheckCollision(const Triangle& triangle, const Ray& ray)
-{
+bool CheckCollision(const Triangle& triangle, const Ray& ray) {
 	// 三角形から平面を求める
 	Plane plane;
 	Vector3 v1 = Subtract(triangle.vertices[1], triangle.vertices[0]);
@@ -555,7 +598,7 @@ void DrawAABB(const AABB& aabb, const Matrix4x4& viewProjectionMatrix, const Mat
 }
 
 // 2次ベジェ曲線描画
-void DrawBezier(const Vector3& controlPoint0, const Vector3& controlPoint1, const Vector3& controlPoint2, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color){
+void DrawBezier(const Vector3& controlPoint0, const Vector3& controlPoint1, const Vector3& controlPoint2, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color) {
 	float t = 0.0f;
 	const int kSubdivision = 32; // 分割数
 	Vector3 p = controlPoint0;
@@ -565,11 +608,11 @@ void DrawBezier(const Vector3& controlPoint0, const Vector3& controlPoint1, cons
 		Vector3 p1p2 = Lerp(controlPoint1, controlPoint2, t); // 制御点1,2を線形補間
 		Vector3 preP = p;
 		p = Lerp(p0p1, p1p2, t); // 二つの点を線形補間
-		
+
 		// スクリーン座標へ変換
 		Vector3 screenPoint0 = TransformVector(TransformVector(preP, viewProjectionMatrix), viewportMatrix);
 		Vector3 screenPoint1 = TransformVector(TransformVector(p, viewProjectionMatrix), viewportMatrix);
-		
+
 		Novice::DrawLine(int(screenPoint0.x), int(screenPoint0.y), int(screenPoint1.x), int(screenPoint1.y), color);
 	}
 }
