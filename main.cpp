@@ -127,6 +127,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	ball.radius = 0.05f;
 	ball.color = BLUE;
 
+	bool isMoveSpring = false;
+
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
 		// フレームの開始
@@ -141,6 +143,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///
 
 		ImGui::Begin("Window");
+		if (!isMoveSpring && ImGui::Button("Start")) {
+			isMoveSpring = true;
+		}
+		if (isMoveSpring && ImGui::Button("Stop")) {
+			isMoveSpring = false;
+		}
+		if (ImGui::Button("Reset")) {
+			spring.anchor = { 0.0f, 0.0f, 0.0f };
+			ball.position = { 1.2f, 0.0f, 0.0f };
+			ball.velocity = { 0.0f, 0.0f, 0.0f };
+			isMoveSpring = false;
+		}
+
+		ImGui::DragFloat3("Anchor", &spring.anchor.x, 0.01f, -10.0f, 0.1f);
+		ImGui::DragFloat3("BallPosition", &ball.position.x, 0.01f, -10.0f, 0.1f);
 
 		// デバッグ用カメラ操作
 		ImGuiIO& io = ImGui::GetIO();
@@ -175,21 +192,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 		ImGui::End();
 
-		Vector3 diff = ball.position - spring.anchor;
-		float length = Length(diff);
-		if (length != 0.0f) {
-			Vector3 direction = Normalize(diff);
-			Vector3 restPosition = spring.anchor + direction * spring.naturalLength;
-			Vector3 displacement = length * (ball.position - restPosition);
-			Vector3 restoringForce = -spring.stiffness * displacement; // 復元力
+		if (isMoveSpring) {
+			Vector3 diff = ball.position - spring.anchor;
+			float length = Length(diff);
+			if (length != 0.0f) {
+				Vector3 direction = Normalize(diff);
+				Vector3 restPosition = spring.anchor + direction * spring.naturalLength;
+				Vector3 displacement = length * (ball.position - restPosition);
+				Vector3 restoringForce = -spring.stiffness * displacement; // 復元力
 
-			Vector3 dampingForce = -spring.dampingCoefficient * ball.velocity; // 減衰力
-			Vector3 force = restoringForce + dampingForce;
-			ball.acceleration = force / ball.mass;; // 加速度 = 力 / 質量
+				Vector3 dampingForce = -spring.dampingCoefficient * ball.velocity; // 減衰力
+				Vector3 force = restoringForce + dampingForce;
+				ball.acceleration = force / ball.mass;; // 加速度 = 力 / 質量
+			}
+			float deltaTime = 1.0f / 60.0f;
+			ball.velocity += ball.acceleration * deltaTime;
+			ball.position += ball.velocity * deltaTime;
 		}
-		float deltaTime = 1.0f / 60.0f;
-		ball.velocity += ball.acceleration * deltaTime;
-		ball.position += ball.velocity * deltaTime;
 
 		///
 		/// ↑更新処理ここまで
