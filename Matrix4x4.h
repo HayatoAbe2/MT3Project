@@ -401,3 +401,16 @@ Matrix4x4 MakeViewProjectionMatrix(Transform cameraTransform, Matrix4x4 perspect
 	Matrix4x4 projectionMatrix = perspectiveFovMatrix;
 	return Multiply(viewMatrix, projectionMatrix);
 };
+
+// 演算子オーバーロード
+Matrix4x4 operator+(const Matrix4x4& m1, const Matrix4x4& m2) {
+	return Add(m1, m2);
+};
+
+Matrix4x4 operator-(const Matrix4x4& m1, const Matrix4x4& m2) {
+	return Subtract(m1, m2);
+};
+
+Matrix4x4 operator*(const Matrix4x4& m1, const Matrix4x4& m2) {
+	return Multiply(m1, m2);
+};

@@ -5,6 +5,13 @@ struct Vector3 {
 	float x;
 	float y;
 	float z;
+
+	Vector3& operator*=(float s) {
+		x *= s;
+		y *= s;
+		z *= s;
+		return *this;
+	}
 };
 
 // 3次元ベクトル加算
@@ -71,3 +78,30 @@ Vector3 Lerp(const Vector3& v1, const Vector3& v2, float t) {
 	};
 }
 
+Vector3 operator+(const Vector3& v1, const Vector3& v2) {
+	return Add(v1, v2);
+}
+
+Vector3 operator-(const Vector3& v1, const Vector3& v2) {
+	return Subtract(v1, v2);
+}
+
+Vector3 operator*(float scalar, const Vector3& v) {
+	return Multiply(scalar, v);
+}
+
+Vector3 operator*(const Vector3& v, float scalar) {
+	return scalar * v;
+}
+
+Vector3 operator/(const Vector3& v, float scalar) {
+	return Multiply(1.0f / scalar, v);
+}
+
+Vector3 operator-(const Vector3& v) {
+	return { -v.x, -v.y, -v.z };
+}
+
+Vector3 operator+(const Vector3& v) {
+	return v;
+}
