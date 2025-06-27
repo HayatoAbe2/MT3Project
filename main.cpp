@@ -99,17 +99,33 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Matrix4x4 viewProjectionMatrix = MakeViewProjectionMatrix(cameraTransform, float(kWindowWidth) / float(kWindowHeight));
 	Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, float(kWindowWidth), float(kWindowHeight), 0.0f, 1.0f);
 
-	Vector3 a{ 0.2f,1.0f,0.0f };
-	Vector3 b{ 2.4f,3.1f,1.2f };
-	Vector3 c = a + b;
-	Vector3 d = a - b;
-	Vector3 e = a * 2.4f;
+	struct Spring {
+		Vector3 anchor;
+		float naturalLength; // 自然長
+		float stiffness; // ばね定数
+		float dampingCoefficient; // 減衰係数
+	};
 
-	Vector3 rotate{ 0.4f,1.43f,-0.8f };
-	Matrix4x4 rotateXMatrix = MakeRotateXMatrix(rotate.x);
-	Matrix4x4 rotateYMatrix = MakeRotateYMatrix(rotate.y);
-	Matrix4x4 rotateZMatrix = MakeRotateZMatrix(rotate.z);
-	Matrix4x4 rotateMatrix = rotateXMatrix * rotateYMatrix * rotateZMatrix;
+	struct Ball {
+		Vector3 position;
+		Vector3 velocity;
+		Vector3 acceleration;
+		float mass;
+		float radius;
+		unsigned int color;
+	};
+
+	Spring spring{};
+	spring.anchor = { 0.0f,0.0f,0.0f };
+	spring.naturalLength = 1.0f;
+	spring.stiffness = 100.0f;
+	spring.dampingCoefficient = 2.0f;
+
+	Ball ball{};
+	ball.position = { 1.2f, 0.0f, 0.0f };
+	ball.mass = 2.0f;
+	ball.radius = 0.05f;
+	ball.color = BLUE;
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
@@ -125,16 +141,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///
 
 		ImGui::Begin("Window");
-		ImGui::Text("c:%f, %f, %f", c.x, c.y, c.z);
-		ImGui::Text("d:%f, %f, %f", d.x, d.y, d.z);
-		ImGui::Text("e:%f, %f, %f", e.x, e.y, e.z);
-		ImGui::Text(
-			"matrix:\n%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f\n",
-			rotateMatrix.m[0][0], rotateMatrix.m[0][1], rotateMatrix.m[0][2], rotateMatrix.m[0][3],
-			rotateMatrix.m[1][0], rotateMatrix.m[1][1], rotateMatrix.m[1][2], rotateMatrix.m[1][3],
-			rotateMatrix.m[2][0], rotateMatrix.m[2][1], rotateMatrix.m[2][2], rotateMatrix.m[2][3],
-			rotateMatrix.m[3][0], rotateMatrix.m[3][1], rotateMatrix.m[3][2], rotateMatrix.m[3][3]
-		);
 
 		// デバッグ用カメラ操作
 		ImGuiIO& io = ImGui::GetIO();
@@ -169,6 +175,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 		ImGui::End();
 
+		Vector3 diff = ball.position - spring.anchor;
+		float length = Length(diff);
+		if (length != 0.0f) {
+			Vector3 direction = Normalize(diff);
+			Vector3 restPosition = spring.anchor + direction * spring.naturalLength;
+			Vector3 displacement = length * (ball.position - restPosition);
+			Vector3 restoringForce = -spring.stiffness * displacement; // 復元力
+
+			Vector3 dampingForce = -spring.dampingCoefficient * ball.velocity; // 減衰力
+			Vector3 force = restoringForce + dampingForce;
+			ball.acceleration = force / ball.mass;; // 加速度 = 力 / 質量
+		}
+		float deltaTime = 1.0f / 60.0f;
+		ball.velocity += ball.acceleration * deltaTime;
+		ball.position += ball.velocity * deltaTime;
+
 		///
 		/// ↑更新処理ここまで
 		///
@@ -182,6 +204,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
+		Vector3 anchorScreen = TransformVector(TransformVector(spring.anchor, viewProjectionMatrix), viewportMatrix);
+		Vector3 ballScreen = TransformVector(TransformVector(ball.position, viewProjectionMatrix), viewportMatrix);
+
+		// 線
+		Novice::DrawLine(int(anchorScreen.x), int(anchorScreen.y), int(ballScreen.x), int(ballScreen.y), WHITE);
+
+		// 球
+		DrawSphere({ ball.position, ball.radius }, viewProjectionMatrix, viewportMatrix, ball.color);
 
 
 		///
