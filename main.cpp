@@ -99,35 +99,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Matrix4x4 viewProjectionMatrix = MakeViewProjectionMatrix(cameraTransform, float(kWindowWidth) / float(kWindowHeight));
 	Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, float(kWindowWidth), float(kWindowHeight), 0.0f, 1.0f);
 
-	struct Spring {
-		Vector3 anchor;
-		float naturalLength; // 自然長
-		float stiffness; // ばね定数
-		float dampingCoefficient; // 減衰係数
-	};
-
-	struct Ball {
-		Vector3 position;
-		Vector3 velocity;
-		Vector3 acceleration;
-		float mass;
-		float radius;
-		unsigned int color;
-	};
-
-	Spring spring{};
-	spring.anchor = { 0.0f,0.0f,0.0f };
-	spring.naturalLength = 1.0f;
-	spring.stiffness = 100.0f;
-	spring.dampingCoefficient = 2.0f;
-
-	Ball ball{};
-	ball.position = { 1.2f, 0.0f, 0.0f };
-	ball.mass = 2.0f;
-	ball.radius = 0.05f;
-	ball.color = BLUE;
-
-	bool isMoveSpring = false;
+	float angularVelocity = 3.14f; // 角速度
+	float angle = 0.0f;
+	float radius = 0.8f; // 半径
+	Vector3 point = { radius,0.0f,0.0f };
+	Vector3 center = {};
+	bool isMove = false;
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
@@ -143,21 +120,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///
 
 		ImGui::Begin("Window");
-		if (!isMoveSpring && ImGui::Button("Start")) {
-			isMoveSpring = true;
-		}
-		if (isMoveSpring && ImGui::Button("Stop")) {
-			isMoveSpring = false;
-		}
-		if (ImGui::Button("Reset")) {
-			spring.anchor = { 0.0f, 0.0f, 0.0f };
-			ball.position = { 1.2f, 0.0f, 0.0f };
-			ball.velocity = { 0.0f, 0.0f, 0.0f };
-			isMoveSpring = false;
-		}
 
-		ImGui::DragFloat3("Anchor", &spring.anchor.x, 0.01f, -10.0f, 0.1f);
-		ImGui::DragFloat3("BallPosition", &ball.position.x, 0.01f, -10.0f, 0.1f);
+		if (!isMove && ImGui::Button("Start")) {
+			isMove = true;
+		}
+		if (isMove && ImGui::Button("Stop")) {
+			isMove = false;
+		}
 
 		// デバッグ用カメラ操作
 		ImGuiIO& io = ImGui::GetIO();
@@ -192,23 +161,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 		ImGui::End();
 
-		if (isMoveSpring) {
-			Vector3 diff = ball.position - spring.anchor;
-			float length = Length(diff);
-			if (length != 0.0f) {
-				Vector3 direction = Normalize(diff);
-				Vector3 restPosition = spring.anchor + direction * spring.naturalLength;
-				Vector3 displacement = length * (ball.position - restPosition);
-				Vector3 restoringForce = -spring.stiffness * displacement; // 復元力
-
-				Vector3 dampingForce = -spring.dampingCoefficient * ball.velocity; // 減衰力
-				Vector3 force = restoringForce + dampingForce;
-				ball.acceleration = force / ball.mass;; // 加速度 = 力 / 質量
-			}
+		if (isMove) {
 			float deltaTime = 1.0f / 60.0f;
-			ball.velocity += ball.acceleration * deltaTime;
-			ball.position += ball.velocity * deltaTime;
+			angle += angularVelocity * deltaTime;
+
+			point.x = center.x + std::cos(angle) * radius;
+			point.y = center.y + std::sin(angle) * radius;
+			point.z = center.z;
 		}
+		
 
 		///
 		/// ↑更新処理ここまで
@@ -223,14 +184,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
-		Vector3 anchorScreen = TransformVector(TransformVector(spring.anchor, viewProjectionMatrix), viewportMatrix);
-		Vector3 ballScreen = TransformVector(TransformVector(ball.position, viewProjectionMatrix), viewportMatrix);
-
-		// 線
-		Novice::DrawLine(int(anchorScreen.x), int(anchorScreen.y), int(ballScreen.x), int(ballScreen.y), WHITE);
+		Vector3 PointScreen = TransformVector(TransformVector(point, viewProjectionMatrix), viewportMatrix);
 
 		// 球
-		DrawSphere({ ball.position, ball.radius }, viewProjectionMatrix, viewportMatrix, ball.color);
+		DrawSphere({ point, 0.03f }, viewProjectionMatrix, viewportMatrix, WHITE);
 
 
 		///
