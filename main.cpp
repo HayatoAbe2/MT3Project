@@ -92,6 +92,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	char keys[256] = { 0 };
 	char preKeys[256] = { 0 };
 
+	struct Pendulum {
+		Vector3 anchor;
+		float length;
+		float angle;
+		float angularVelocity;
+		float angularAcceleration;
+	};
+
 	// 変数の宣言
 	Transform cameraTransform = { {1.0f,1.0f,1.0f},{ 0.26f,0.0f,0.0f },{ 0.0f,1.9f,-6.49f } };
 	int kWindowWidth = 1280;
@@ -99,12 +107,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Matrix4x4 viewProjectionMatrix = MakeViewProjectionMatrix(cameraTransform, float(kWindowWidth) / float(kWindowHeight));
 	Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, float(kWindowWidth), float(kWindowHeight), 0.0f, 1.0f);
 
-	float angularVelocity = 3.14f; // 角速度
-	float angle = 0.0f;
+	Pendulum pendulum;
+	pendulum.anchor = { 0.0f,1.0f,0.0f };
+	pendulum.length = 0.8f;
+	pendulum.angle = 0.7f;
+	pendulum.angularVelocity = 0.0f;
+	pendulum.angularAcceleration = 0.0f;
 	float radius = 0.8f; // 半径
 	Vector3 point = { radius,0.0f,0.0f };
-	Vector3 center = {};
 	bool isMove = false;
+	float deltaTime = 1.0f / 60.0f;
 
 	// ウィンドウの×ボタンが押されるまでループ
 	while (Novice::ProcessMessage() == 0) {
@@ -118,6 +130,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///
 		/// ↓更新処理ここから
 		///
+		
+		if (isMove) {
+			// 角加速度を求める
+			pendulum.angularAcceleration =
+				-(9.8f / pendulum.length) * std::sin(pendulum.angle);
+
+			// 角速度を変化させる
+			pendulum.angularVelocity += pendulum.angularAcceleration * deltaTime;
+
+			// 速度から角度を求める
+			pendulum.angle += pendulum.angularVelocity * deltaTime;
+
+			point.x = pendulum.anchor.x + std::sin(pendulum.angle) * pendulum.length;
+			point.y = pendulum.anchor.y - std::cos(pendulum.angle) * pendulum.length;
+			point.z = pendulum.anchor.z;
+		}
 
 		ImGui::Begin("Window");
 
@@ -160,15 +188,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			cameraTransform.translate.z -= moveSpeedDebug; // 後
 		}
 		ImGui::End();
-
-		if (isMove) {
-			float deltaTime = 1.0f / 60.0f;
-			angle += angularVelocity * deltaTime;
-
-			point.x = center.x + std::cos(angle) * radius;
-			point.y = center.y + std::sin(angle) * radius;
-			point.z = center.z;
-		}
 		
 
 		///
@@ -184,11 +203,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
-		Vector3 PointScreen = TransformVector(TransformVector(point, viewProjectionMatrix), viewportMatrix);
-
+		Vector3 pointScreen = TransformVector(TransformVector(point, viewProjectionMatrix), viewportMatrix);
 		// 球
-		DrawSphere({ point, 0.03f }, viewProjectionMatrix, viewportMatrix, WHITE);
+		DrawSphere({ point, 0.05f }, viewProjectionMatrix, viewportMatrix, WHITE);
 
+		// 振り子の線
+		Vector3 anchorScreen = TransformVector(TransformVector(pendulum.anchor, viewProjectionMatrix), viewportMatrix);
+		Novice::DrawLine(int(anchorScreen.x), int(anchorScreen.y), int(pointScreen.x), int(pointScreen.y), WHITE);
 
 		///
 		/// ↑描画処理ここまで
