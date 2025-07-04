@@ -92,12 +92,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	char keys[256] = { 0 };
 	char preKeys[256] = { 0 };
 
-	struct Pendulum {
+	struct ConicalPendulum {
 		Vector3 anchor;
 		float length;
+		float halfApexAngle;	// 頂角の半分
 		float angle;
 		float angularVelocity;
-		float angularAcceleration;
 	};
 
 	// 変数の宣言
@@ -107,13 +107,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Matrix4x4 viewProjectionMatrix = MakeViewProjectionMatrix(cameraTransform, float(kWindowWidth) / float(kWindowHeight));
 	Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, float(kWindowWidth), float(kWindowHeight), 0.0f, 1.0f);
 
-	Pendulum pendulum;
-	pendulum.anchor = { 0.0f,1.0f,0.0f };
-	pendulum.length = 0.8f;
-	pendulum.angle = 0.7f;
-	pendulum.angularVelocity = 0.0f;
-	pendulum.angularAcceleration = 0.0f;
-	float radius = 0.8f; // 半径
+	ConicalPendulum conicalPendulum;
+	conicalPendulum.anchor = { 0.0f,1.0f,0.0f };
+	conicalPendulum.length = 0.8f;
+	conicalPendulum.halfApexAngle = 0.7f;
+	conicalPendulum.angle = 0.0f;
+	conicalPendulum.angularVelocity = 0.0f;
+	float radius = std::sin(conicalPendulum.halfApexAngle) * conicalPendulum.length;
+	float height = std::cos(conicalPendulum.halfApexAngle) * conicalPendulum.length;
 	Vector3 point = { radius,0.0f,0.0f };
 	bool isMove = false;
 	float deltaTime = 1.0f / 60.0f;
@@ -132,19 +133,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///
 		
 		if (isMove) {
-			// 角加速度を求める
-			pendulum.angularAcceleration =
-				-(9.8f / pendulum.length) * std::sin(pendulum.angle);
-
-			// 角速度を変化させる
-			pendulum.angularVelocity += pendulum.angularAcceleration * deltaTime;
+			
+			// 角速度を求める
+			conicalPendulum.angularVelocity = std::sqrtf(9.8f / (conicalPendulum.length * std::cos(conicalPendulum.halfApexAngle)));
 
 			// 速度から角度を求める
-			pendulum.angle += pendulum.angularVelocity * deltaTime;
+			conicalPendulum.angle += conicalPendulum.angularVelocity * deltaTime;
 
-			point.x = pendulum.anchor.x + std::sin(pendulum.angle) * pendulum.length;
-			point.y = pendulum.anchor.y - std::cos(pendulum.angle) * pendulum.length;
-			point.z = pendulum.anchor.z;
+			radius = std::sin(conicalPendulum.halfApexAngle) * conicalPendulum.length;
+			height = std::cos(conicalPendulum.halfApexAngle) * conicalPendulum.length;
+
+			point.x = conicalPendulum.anchor.x + std::cos(conicalPendulum.angle) * radius;
+			point.y = conicalPendulum.anchor.y - height;
+			point.z = conicalPendulum.anchor.z - std::sin(conicalPendulum.angle) * radius;
 		}
 
 		ImGui::Begin("Window");
@@ -208,7 +209,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		DrawSphere({ point, 0.05f }, viewProjectionMatrix, viewportMatrix, WHITE);
 
 		// 振り子の線
-		Vector3 anchorScreen = TransformVector(TransformVector(pendulum.anchor, viewProjectionMatrix), viewportMatrix);
+		Vector3 anchorScreen = TransformVector(TransformVector(conicalPendulum.anchor, viewProjectionMatrix), viewportMatrix);
 		Novice::DrawLine(int(anchorScreen.x), int(anchorScreen.y), int(pointScreen.x), int(pointScreen.y), WHITE);
 
 		///
