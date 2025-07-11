@@ -54,6 +54,12 @@ struct OBB {
 	Vector3 size; // 各軸の長さの半分
 };
 
+// 衝突判定用のカプセル
+struct Capsule {
+	Segment segment;
+	float radius;
+};
+
 Vector3 Project(const Vector3& v1, const  Vector3& v2);
 Vector3 ClosestPoint(const Vector3& point, const Segment& segment);
 Vector3 Lerp(const Vector3& v1, const Vector3& v2, float t);
@@ -68,6 +74,8 @@ bool CheckCollision(const AABB& aabb1, const AABB& aabb2);
 bool CheckCollision(const AABB& aabb, const Sphere& sphere);
 bool CheckCollision(const AABB& aabb, const Segment& segment);
 Vector3 Perpendicular(const Vector3& vector);
+Vector3 Reflect(const Vector3& input, const Vector3& normal);
+bool IsCollisionCapsule(Vector3& pos, const Vector3& velocity, const float& radius, const Plane& plane);
 
 // 表示用の関数
 static const int kColumnWidth = 60;
@@ -92,12 +100,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	char keys[256] = { 0 };
 	char preKeys[256] = { 0 };
 
-	struct ConicalPendulum {
-		Vector3 anchor;
-		float length;
-		float halfApexAngle;	// 頂角の半分
-		float angle;
-		float angularVelocity;
+	struct Ball {
+		Vector3 position;
+		Vector3 velocity;
+		Vector3 acceleration;
+		float radius;
+		float mass;
 	};
 
 	// 変数の宣言
@@ -107,15 +115,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	Matrix4x4 viewProjectionMatrix = MakeViewProjectionMatrix(cameraTransform, float(kWindowWidth) / float(kWindowHeight));
 	Matrix4x4 viewportMatrix = MakeViewportMatrix(0, 0, float(kWindowWidth), float(kWindowHeight), 0.0f, 1.0f);
 
-	ConicalPendulum conicalPendulum;
-	conicalPendulum.anchor = { 0.0f,1.0f,0.0f };
-	conicalPendulum.length = 0.8f;
-	conicalPendulum.halfApexAngle = 0.7f;
-	conicalPendulum.angle = 0.0f;
-	conicalPendulum.angularVelocity = 0.0f;
-	float radius = std::sin(conicalPendulum.halfApexAngle) * conicalPendulum.length;
-	float height = std::cos(conicalPendulum.halfApexAngle) * conicalPendulum.length;
-	Vector3 point = { radius,0.0f,0.0f };
+	// 動かす球
+	Ball ball;
+	ball.position = { 0.8f,1.2f,0.3f };
+	ball.velocity = {};
+	ball.acceleration = { 0.0f, -9.8f, 0.0f }; // 重力加速度
+	ball.radius = 0.05f;
+	ball.mass = 2.0f;
+	// 平面
+	Plane plane;
+	plane.normal = Normalize({ -0.2f,0.9f,-0.3f });
+	plane.distance = 0.0f;
+
+	float e = 0.5f; // 反発係数
 	bool isMove = false;
 	float deltaTime = 1.0f / 60.0f;
 
@@ -131,22 +143,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		///
 		/// ↓更新処理ここから
 		///
-		
+
 		if (isMove) {
-			
-			// 角速度を求める
-			conicalPendulum.angularVelocity = std::sqrtf(9.8f / (conicalPendulum.length * std::cos(conicalPendulum.halfApexAngle)));
 
-			// 速度から角度を求める
-			conicalPendulum.angle += conicalPendulum.angularVelocity * deltaTime;
+			ball.velocity += ball.acceleration * deltaTime;
 
-			radius = std::sin(conicalPendulum.halfApexAngle) * conicalPendulum.length;
-			height = std::cos(conicalPendulum.halfApexAngle) * conicalPendulum.length;
-
-			point.x = conicalPendulum.anchor.x + std::cos(conicalPendulum.angle) * radius;
-			point.y = conicalPendulum.anchor.y - height;
-			point.z = conicalPendulum.anchor.z - std::sin(conicalPendulum.angle) * radius;
+			// 衝突時の反発計算
+			// カプセル衝突
+			if (IsCollisionCapsule(ball.position, ball.velocity, ball.radius, plane)) {
+				Vector3 reflected = Reflect(ball.velocity, plane.normal);
+				Vector3 projectToNormal = Project(reflected, plane.normal);
+				Vector3 movingDirection = reflected - projectToNormal;
+				ball.velocity = projectToNormal * e + movingDirection;
+			} else {
+				ball.position += ball.velocity * deltaTime;
+			}
 		}
+
 
 		ImGui::Begin("Window");
 
@@ -156,6 +169,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		if (isMove && ImGui::Button("Stop")) {
 			isMove = false;
 		}
+		if (ImGui::Button("Reset ball")) {
+			ball.position = { 0.8f,1.2f,0.3f };
+			ball.velocity = {};
+			ball.acceleration = { 0.0f, -9.8f, 0.0f }; // 重力加速度
+			ball.radius = 0.05f;
+			ball.mass = 2.0f;
+		}
+
+		ImGui::DragFloat3("Plane.normal", &plane.normal.x, 0.03f);
+		plane.normal = Normalize(plane.normal);
 
 		// デバッグ用カメラ操作
 		ImGuiIO& io = ImGui::GetIO();
@@ -189,7 +212,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			cameraTransform.translate.z -= moveSpeedDebug; // 後
 		}
 		ImGui::End();
-		
+
 
 		///
 		/// ↑更新処理ここまで
@@ -204,13 +227,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		DrawGrid(viewProjectionMatrix, viewportMatrix);
 
-		Vector3 pointScreen = TransformVector(TransformVector(point, viewProjectionMatrix), viewportMatrix);
-		// 球
-		DrawSphere({ point, 0.05f }, viewProjectionMatrix, viewportMatrix, WHITE);
+		// 平面
+		DrawPlane(plane, viewProjectionMatrix, viewportMatrix, WHITE);
 
-		// 振り子の線
-		Vector3 anchorScreen = TransformVector(TransformVector(conicalPendulum.anchor, viewProjectionMatrix), viewportMatrix);
-		Novice::DrawLine(int(anchorScreen.x), int(anchorScreen.y), int(pointScreen.x), int(pointScreen.y), WHITE);
+		// 球
+		DrawSphere({ ball.position, 0.05f }, viewProjectionMatrix, viewportMatrix, WHITE);
+
 
 		///
 		/// ↑描画処理ここまで
@@ -519,6 +541,10 @@ Vector3 Perpendicular(const Vector3& vector) {
 	return { 0.0f,-vector.z,vector.y };
 }
 
+Vector3 Reflect(const Vector3& input, const Vector3& normal) {
+	return input - (2.0f * (Dot(input, normal) * normal));
+}
+
 // 平面描画
 void DrawPlane(const Plane& plane, const Matrix4x4& viewProjectionMatrix, const Matrix4x4& viewportMatrix, uint32_t color) {
 	Vector3 center = Multiply(plane.distance, plane.normal);
@@ -719,4 +745,34 @@ void DrawSphere(const Sphere& sphere, const Matrix4x4& viewProjectionMatrix, con
 			Novice::DrawLine(int(aScreen.x), int(aScreen.y), int(cScreen.x), int(cScreen.y), color);
 		}
 	}
+}
+
+bool IsCollisionCapsule(Vector3& pos, const Vector3& velocity, const float& radius, const Plane& plane) {
+	Capsule capsule;
+	capsule.segment.origin = pos;
+	capsule.segment.diff = velocity;
+	capsule.radius = radius;
+
+	// カプセルの端から平面までの最短距離
+	float distance[2];
+	distance[0] = Dot(plane.normal, capsule.segment.origin) - plane.distance;
+	distance[1] = Dot(plane.normal, capsule.segment.origin + capsule.segment.diff) - plane.distance;
+
+	// 半径より距離が小さければ衝突
+	if ((distance[0] < radius && distance[1] > -radius)||
+		(distance[0] > -radius &&  distance[1] < radius)) {
+
+		if (distance[1] - distance[0] < 1e-6f) {
+			pos = capsule.segment.origin;
+			return true;
+		}
+
+		float t = (distance[0] - capsule.radius) / (distance[1] - distance[0]);
+		t = std::clamp(t, 0.0f, 1.0f);
+
+		Vector3 hit = capsule.segment.origin + capsule.segment.diff * t;
+		pos = hit - plane.normal * capsule.radius; // 半径の分戻す
+		return true;
+	}
+	return false;
 }
